@@ -1,0 +1,5 @@
+{
+  "name": "Lunar Lander: Odyssey",
+  "description": "A physics-based landing simulator where you must pilot a spacecraft to a safe landing on various celestial bodies. Features persistent high scores and retro-arcade aesthetics.",
+  "requestFramePermissions": []
+}
