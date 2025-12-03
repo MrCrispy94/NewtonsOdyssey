@@ -1,15 +1,20 @@
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import LanderGame from './components/LanderGame';
 import { PLANETS, GAME_CONSTANTS, SKINS } from './constants';
 import { PlanetConfig, GameState, Skin, PlanetType } from './types';
-import { Trophy, Flame, RotateCcw, Play, Rocket, Grid, Settings, Lock, Unlock, Menu, ChevronLeft, Sliders, Monitor, Check } from 'lucide-react';
+import { Trophy, Flame, RotateCcw, Play, Rocket, Grid, Settings, Lock, Unlock, Menu, ChevronLeft, Sliders, Monitor, Check, Trash2, Gauge, Zap, Info, User, Terminal } from 'lucide-react';
 
 const App: React.FC = () => {
   // --- STATE ---
-  const [view, setView] = useState<'menu' | 'game' | 'hangar' | 'custom' | 'settings'>('menu');
+  const [view, setView] = useState<'onboarding' | 'menu' | 'game' | 'hangar' | 'custom' | 'settings'>('onboarding');
   const [activePlanet, setActivePlanet] = useState<PlanetConfig>(PLANETS.moon);
   const [selectedSkinId, setSelectedSkinId] = useState<string>('default');
   
+  // User Identity
+  const [playerName, setPlayerName] = useState<string>('');
+  const [showBriefing, setShowBriefing] = useState<boolean>(false);
+
   // Custom Planet Builder State
   const [customGravity, setCustomGravity] = useState<number>(5.0);
   
@@ -18,6 +23,9 @@ const App: React.FC = () => {
 
   // Screen Fit / Safe Zone State (Percentages 0-20)
   const [safePadding, setSafePadding] = useState<{x: number, y: number}>({ x: 0, y: 0 });
+
+  // Game Settings
+  const [isRealismMode, setIsRealismMode] = useState<boolean>(false);
 
   // --- DERIVED STATE ---
   const careerScore = useMemo(() => {
@@ -47,6 +55,15 @@ const App: React.FC = () => {
   // --- EFFECTS ---
   useEffect(() => {
     try {
+      // Identity Check
+      const savedName = localStorage.getItem('odyssey_username');
+      if (savedName) {
+        setPlayerName(savedName);
+        setView('menu');
+      } else {
+        setView('onboarding');
+      }
+
       const savedScores = localStorage.getItem('odyssey_scores');
       if (savedScores) setHighScores(JSON.parse(savedScores));
       
@@ -55,10 +72,22 @@ const App: React.FC = () => {
 
       const savedPadding = localStorage.getItem('odyssey_safe_padding');
       if (savedPadding) setSafePadding(JSON.parse(savedPadding));
+
+      const savedRealism = localStorage.getItem('odyssey_realism');
+      if (savedRealism) setIsRealismMode(JSON.parse(savedRealism));
     } catch (e) {
       console.error("Failed to load save data", e);
     }
   }, []);
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!playerName.trim()) return;
+    
+    localStorage.setItem('odyssey_username', playerName.trim());
+    setView('menu');
+    setShowBriefing(true);
+  };
 
   const saveScore = (planetId: string, score: number) => {
     setHighScores(prev => {
@@ -81,6 +110,26 @@ const App: React.FC = () => {
       const newPadding = { ...safePadding, [axis]: value };
       setSafePadding(newPadding);
       localStorage.setItem('odyssey_safe_padding', JSON.stringify(newPadding));
+  };
+
+  const toggleRealismMode = () => {
+      const newVal = !isRealismMode;
+      setIsRealismMode(newVal);
+      localStorage.setItem('odyssey_realism', JSON.stringify(newVal));
+  };
+
+  const resetProgress = () => {
+      if (window.confirm("ARE YOU SURE?\n\nThis will permanently delete all high scores, lock skins, and reset your commander profile.")) {
+          setHighScores({});
+          localStorage.removeItem('odyssey_scores');
+          
+          setSelectedSkinId('default');
+          localStorage.setItem('odyssey_skin', 'default');
+          
+          setPlayerName('');
+          localStorage.removeItem('odyssey_username');
+          setView('onboarding');
+      }
   };
 
   // --- GAME LOGIC ---
@@ -141,34 +190,156 @@ const App: React.FC = () => {
       paddingRight: `${safePadding.x}%`
   };
 
+  // --- COMPONENTS ---
+  
+  const MissionBriefingModal = () => (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
+        <div className="bg-slate-900 border border-cyan-500/50 rounded-2xl p-6 max-w-lg w-full shadow-[0_0_50px_rgba(6,182,212,0.2)] relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-cyan-500 to-transparent"></div>
+            
+            <div className="flex items-start gap-4 mb-6">
+                <div className="bg-cyan-500/20 p-3 rounded-lg border border-cyan-500/30">
+                    <Info className="text-cyan-400" size={32} />
+                </div>
+                <div>
+                    <h2 className="text-2xl font-black text-white tracking-tight">MISSION BRIEFING</h2>
+                    <p className="text-cyan-400/80 font-mono text-xs uppercase tracking-widest">Physics 101: Forces & Motion</p>
+                </div>
+            </div>
+
+            <div className="space-y-4 text-slate-300 mb-8 max-h-[60vh] overflow-y-auto pr-2">
+                <p>Welcome to Newton's Odyssey, <strong className="text-white">Commander {playerName}</strong>.</p>
+                
+                <div className="bg-slate-950/50 p-4 rounded-lg border border-slate-800">
+                    <h3 className="text-white font-bold mb-3 text-sm uppercase flex items-center gap-2">
+                        <Rocket size={14} className="text-yellow-500"/> Forces in Balance (Year 7)
+                    </h3>
+                    <ul className="space-y-3 text-sm">
+                        <li className="flex gap-3">
+                            <div className="w-1 h-full bg-slate-700 rounded-full"></div>
+                            <div>
+                                <strong className="text-white block">Gravity (Weight)</strong>
+                                <span className="text-slate-400">A constant force pulling your lander down.</span>
+                            </div>
+                        </li>
+                        <li className="flex gap-3">
+                            <div className="w-1 h-full bg-orange-500 rounded-full"></div>
+                            <div>
+                                <strong className="text-white block">Thrust</strong>
+                                <span className="text-slate-400">The upward force from your engine that you control.</span>
+                            </div>
+                        </li>
+                        <li className="bg-slate-900 p-2 rounded text-xs border border-slate-700 mt-1">
+                            <strong>Resultant Force:</strong> If Thrust > Weight, you slow down. If Weight > Thrust, you speed up downwards.
+                        </li>
+                    </ul>
+                </div>
+
+                <div className="bg-slate-950/50 p-4 rounded-lg border border-slate-800">
+                    <h3 className="text-white font-bold mb-2 text-sm uppercase flex items-center gap-2">
+                        <Trophy size={14} className="text-yellow-500"/> Mission Scoring
+                    </h3>
+                    <p className="text-sm">
+                        Efficiency is key. Your high score is calculated based on:
+                    </p>
+                    <div className="flex items-center gap-2 mt-2 font-mono text-xs">
+                        <span className="bg-green-900/30 text-green-400 px-2 py-1 rounded border border-green-900/50">Low Landing Speed</span> 
+                        <span>+</span>
+                        <span className="bg-yellow-900/30 text-yellow-400 px-2 py-1 rounded border border-yellow-900/50">Remaining Fuel</span>
+                    </div>
+                </div>
+            </div>
+
+            <button 
+                onClick={() => setShowBriefing(false)}
+                className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg group"
+            >
+                <span>ACKNOWLEDGE</span>
+                <ChevronLeft className="rotate-180 group-hover:translate-x-1 transition-transform" size={20} />
+            </button>
+        </div>
+    </div>
+  );
+
   // --- VIEWS ---
+
+  // 0. ONBOARDING
+  if (view === 'onboarding') {
+    return (
+        <div className="w-full h-[100dvh] bg-slate-950 text-white flex flex-col items-center justify-center relative overflow-hidden">
+             {renderStars()}
+             <div className="relative z-10 w-full max-w-sm p-6 space-y-8" style={safeZoneStyle}>
+                <div className="text-center space-y-2">
+                    <div className="inline-flex items-center justify-center p-4 bg-cyan-500/10 rounded-full border border-cyan-500/30 mb-4 animate-pulse">
+                        <Rocket size={40} className="text-cyan-400" />
+                    </div>
+                    <h1 className="text-3xl font-black tracking-tighter">SYSTEM LOGIN</h1>
+                    <p className="text-slate-400 text-sm">Please identify yourself, Commander.</p>
+                </div>
+
+                <form onSubmit={handleLogin} className="space-y-4">
+                    <div className="space-y-2">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest pl-1">Callsign</label>
+                        <div className="relative">
+                            <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={20} />
+                            <input 
+                                type="text"
+                                value={playerName}
+                                onChange={(e) => setPlayerName(e.target.value)}
+                                placeholder="ENTER NAME..."
+                                className="w-full bg-slate-900 border-2 border-slate-800 focus:border-cyan-500 rounded-xl py-4 pl-12 pr-4 text-lg font-mono text-white outline-none transition-all placeholder:text-slate-700"
+                                maxLength={12}
+                                autoFocus
+                            />
+                        </div>
+                    </div>
+                    <button 
+                        type="submit"
+                        disabled={!playerName.trim()}
+                        className="w-full bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-[0_0_20px_rgba(8,145,178,0.3)]"
+                    >
+                        <Terminal size={20} /> INITIALIZE SYSTEM
+                    </button>
+                </form>
+             </div>
+        </div>
+    );
+  }
 
   // 1. MAIN MENU
   if (view === 'menu') {
     return (
       <div className="w-full h-[100dvh] bg-slate-950 text-white overflow-hidden relative">
         {renderStars()}
+        {showBriefing && <MissionBriefingModal />}
         
         <div className="w-full h-full flex flex-col" style={safeZoneStyle}>
             <header className="sticky top-0 z-20 bg-slate-900/90 backdrop-blur-md p-4 border-b border-slate-800 flex justify-between items-center shadow-lg rounded-b-xl mx-2 mt-2">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
                 <div className="bg-cyan-500 p-2 rounded-lg">
-                <Rocket className="text-black" size={24} />
+                    <Rocket className="text-black" size={24} />
                 </div>
                 <div>
-                <h1 className="font-black tracking-tighter text-xl text-cyan-400 leading-none">ODYSSEY</h1>
-                <div className="text-[10px] text-slate-400 font-mono uppercase tracking-widest">Lander Sim</div>
+                    <h1 className="font-black tracking-tighter text-lg text-cyan-400 leading-none uppercase">Commander {playerName}</h1>
+                    <div className="text-[10px] text-slate-400 font-mono uppercase tracking-widest">Odyssey Sys.</div>
                 </div>
             </div>
             
-            <div className="flex items-center gap-4">
-                <div className="flex flex-col items-end">
+            <div className="flex items-center gap-3">
+                <div className="flex flex-col items-end hidden sm:flex">
                     <span className="text-[10px] text-slate-500 uppercase font-bold">Career Score</span>
                     <span className="font-mono text-yellow-500 font-bold text-lg">{careerScore.toLocaleString()}</span>
                 </div>
                 <button 
+                    onClick={() => setShowBriefing(true)}
+                    className="p-2 bg-slate-800 rounded-lg hover:bg-slate-700 text-cyan-400 transition-colors border border-slate-700"
+                    aria-label="Mission Info"
+                >
+                    <Info size={20} />
+                </button>
+                <button 
                     onClick={() => setView('settings')}
-                    className="p-2 bg-slate-800 rounded-lg hover:bg-slate-700 hover:text-cyan-400 transition-colors"
+                    className="p-2 bg-slate-800 rounded-lg hover:bg-slate-700 text-slate-400 hover:text-white transition-colors border border-slate-700"
                 >
                     <Settings size={20} />
                 </button>
@@ -194,6 +365,17 @@ const App: React.FC = () => {
                         <span className="font-bold text-cyan-400 truncate">{selectedSkin.name}</span>
                     </div>
                 </div>
+
+                {/* Mode Indicator */}
+                {isRealismMode && (
+                    <div className="bg-orange-900/20 border border-orange-500/30 p-3 rounded-lg flex items-center gap-3">
+                        <Gauge className="text-orange-500" size={20} />
+                        <div>
+                            <h3 className="text-orange-400 font-bold text-sm">REALISM MODE ACTIVE</h3>
+                            <p className="text-orange-300/70 text-xs">Thrust gradient enabled. Inertia is increased.</p>
+                        </div>
+                    </div>
+                )}
 
                 {/* Planet Grid */}
                 <div className="space-y-2">
@@ -241,70 +423,134 @@ const App: React.FC = () => {
     );
   }
 
-  // 2. SETTINGS (SCREEN FIT)
+  // 2. SETTINGS
   if (view === 'settings') {
       return (
         <div className="w-full h-[100dvh] bg-slate-950 text-white flex flex-col relative overflow-hidden">
-            {/* Background elements to help visualize safe zone */}
             <div className="absolute inset-0 grid grid-cols-[repeat(20,1fr)] grid-rows-[repeat(20,1fr)] opacity-10 pointer-events-none">
                  {[...Array(400)].map((_, i) => <div key={i} className="border border-slate-700"></div>)}
             </div>
             
             <div className="w-full h-full flex flex-col" style={safeZoneStyle}>
-                <div className="flex-1 border-4 border-dashed border-red-500/50 rounded-xl relative flex flex-col">
-                    <div className="absolute top-2 left-2 bg-red-500/80 text-white px-2 py-1 rounded text-xs font-bold">SAFE ZONE BOUNDARY</div>
-                    <div className="absolute bottom-2 right-2 bg-red-500/80 text-white px-2 py-1 rounded text-xs font-bold">SAFE ZONE BOUNDARY</div>
-
-                    <header className="p-4 bg-slate-900/90 border-b border-slate-800 flex items-center gap-4 rounded-t-lg">
+                <div className="flex-1 border-4 border-dashed border-slate-800 rounded-xl relative flex flex-col overflow-hidden">
+                    
+                    <header className="p-4 bg-slate-900/90 border-b border-slate-800 flex items-center gap-4 rounded-t-lg shrink-0">
                         <button onClick={() => setView('menu')} className="p-2 hover:bg-slate-800 rounded-lg">
                             <ChevronLeft />
                         </button>
-                        <h2 className="font-bold text-lg flex items-center gap-2"><Monitor size={20}/> Screen Fit Settings</h2>
+                        <h2 className="font-bold text-lg flex items-center gap-2"><Settings size={20}/> Settings</h2>
                     </header>
 
-                    <main className="flex-1 p-6 flex flex-col justify-center items-center max-w-md mx-auto w-full gap-8 z-10">
-                        <div className="text-center space-y-2 bg-slate-900/80 p-6 rounded-xl border border-slate-800 backdrop-blur-sm">
-                            <h3 className="font-bold text-cyan-400 text-lg">Adjust Safe Zones</h3>
-                            <p className="text-slate-400 text-sm">
-                                Move the sliders until the red dashed border is fully visible and comfortable on your screen.
-                            </p>
-                        </div>
-
-                        <div className="w-full space-y-6 bg-slate-900/80 p-6 rounded-xl border border-slate-800 backdrop-blur-sm">
-                            <div className="space-y-2">
-                                <div className="flex justify-between">
-                                    <label className="text-sm font-bold text-white">Horizontal Inset (Left/Right)</label>
-                                    <span className="font-mono text-cyan-400">{safePadding.x}%</span>
+                    <main className="flex-1 p-6 overflow-y-auto">
+                        <div className="max-w-md mx-auto space-y-8">
+                            
+                            {/* Identity */}
+                            <div className="bg-slate-900/80 p-6 rounded-xl border border-slate-800 backdrop-blur-sm space-y-4">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <User className="text-cyan-400" />
+                                    <h3 className="font-bold text-lg">Commander Identity</h3>
                                 </div>
-                                <input 
-                                    type="range" min="0" max="20" step="1" 
-                                    value={safePadding.x} 
-                                    onChange={(e) => updateSafePadding('x', parseInt(e.target.value))}
-                                    className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
-                                />
+                                <div className="flex justify-between items-center bg-slate-950 p-3 rounded-lg border border-slate-700">
+                                    <span className="text-slate-400 text-sm">Callsign</span>
+                                    <span className="font-mono text-white font-bold">{playerName}</span>
+                                </div>
                             </div>
 
-                            <div className="space-y-2">
-                                <div className="flex justify-between">
-                                    <label className="text-sm font-bold text-white">Vertical Inset (Top/Bottom)</label>
-                                    <span className="font-mono text-cyan-400">{safePadding.y}%</span>
+                            {/* Screen Fit */}
+                            <div className="bg-slate-900/80 p-6 rounded-xl border border-slate-800 backdrop-blur-sm space-y-4">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <Monitor className="text-cyan-400" />
+                                    <h3 className="font-bold text-lg">Screen Calibration</h3>
                                 </div>
-                                <input 
-                                    type="range" min="0" max="20" step="1" 
-                                    value={safePadding.y} 
-                                    onChange={(e) => updateSafePadding('y', parseInt(e.target.value))}
-                                    className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
-                                />
+                                <div className="space-y-4">
+                                    <div className="space-y-2">
+                                        <div className="flex justify-between text-sm">
+                                            <label className="font-bold text-slate-300">Horizontal Padding</label>
+                                            <span className="font-mono text-cyan-400">{safePadding.x}%</span>
+                                        </div>
+                                        <input 
+                                            type="range" min="0" max="20" step="1" 
+                                            value={safePadding.x} 
+                                            onChange={(e) => updateSafePadding('x', parseInt(e.target.value))}
+                                            className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <div className="flex justify-between text-sm">
+                                            <label className="font-bold text-slate-300">Vertical Padding</label>
+                                            <span className="font-mono text-cyan-400">{safePadding.y}%</span>
+                                        </div>
+                                        <input 
+                                            type="range" min="0" max="20" step="1" 
+                                            value={safePadding.y} 
+                                            onChange={(e) => updateSafePadding('y', parseInt(e.target.value))}
+                                            className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                                        />
+                                    </div>
+                                    <p className="text-xs text-slate-500 italic">Adjust sliders until the border is fully visible on your screen.</p>
+                                </div>
                             </div>
-                        </div>
 
-                        <button 
+                            {/* Game Mode */}
+                            <div className="bg-slate-900/80 p-6 rounded-xl border border-slate-800 backdrop-blur-sm space-y-4">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <Gauge className="text-orange-400" />
+                                    <h3 className="font-bold text-lg">Game Mode</h3>
+                                </div>
+                                <div 
+                                    onClick={toggleRealismMode}
+                                    className={`
+                                        cursor-pointer p-4 rounded-lg border-2 flex items-center justify-between transition-all
+                                        ${isRealismMode 
+                                            ? 'bg-orange-950/30 border-orange-500' 
+                                            : 'bg-slate-950/30 border-slate-700 hover:border-slate-500'
+                                        }
+                                    `}
+                                >
+                                    <div>
+                                        <h4 className={`font-bold ${isRealismMode ? 'text-orange-400' : 'text-slate-300'}`}>Realism Mode</h4>
+                                        <p className="text-xs text-slate-500 mt-1">
+                                            Engine thrust builds up gradually instead of instantly. Harder handling.
+                                        </p>
+                                    </div>
+                                    <div className={`
+                                        w-12 h-6 rounded-full relative transition-colors
+                                        ${isRealismMode ? 'bg-orange-500' : 'bg-slate-700'}
+                                    `}>
+                                        <div className={`
+                                            absolute top-1 w-4 h-4 rounded-full bg-white transition-all
+                                            ${isRealismMode ? 'left-7' : 'left-1'}
+                                        `}></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Data Management */}
+                            <div className="bg-slate-900/80 p-6 rounded-xl border border-red-900/30 backdrop-blur-sm space-y-4">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <Trash2 className="text-red-400" />
+                                    <h3 className="font-bold text-lg text-red-100">Danger Zone</h3>
+                                </div>
+                                <button 
+                                    onClick={resetProgress}
+                                    className="w-full bg-red-900/20 hover:bg-red-900/40 text-red-400 font-bold py-3 rounded-xl border border-red-900/50 transition-all flex items-center justify-center gap-2"
+                                >
+                                    <Trash2 size={18} /> RESET SYSTEM
+                                </button>
+                                <p className="text-xs text-red-900/60 text-center">This will delete all high scores, lock skins, and reset your identity.</p>
+                            </div>
+
+                        </div>
+                    </main>
+
+                    <footer className="p-4 bg-slate-900/90 border-t border-slate-800 shrink-0">
+                         <button 
                             onClick={() => setView('menu')}
                             className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 shadow-lg"
                         >
-                            <Check size={20} /> SAVE & RETURN
+                            <Check size={20} /> DONE
                         </button>
-                    </main>
+                    </footer>
                 </div>
             </div>
         </div>
@@ -466,6 +712,7 @@ const App: React.FC = () => {
                     skin={selectedSkin}
                     onGameOver={handleGameOver} 
                     isActive={gameState.isPlaying} 
+                    isRealismMode={isRealismMode}
                 />
 
                 {/* OVERLAY: GAME OVER */}

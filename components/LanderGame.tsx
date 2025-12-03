@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useCallback } from 'react';
 import { PlanetConfig, Skin, Particle } from '../types';
 import { GAME_CONSTANTS } from '../constants';
@@ -7,9 +8,10 @@ interface LanderGameProps {
   skin: Skin;
   onGameOver: (score: number, landed: boolean) => void;
   isActive: boolean;
+  isRealismMode?: boolean;
 }
 
-const LanderGame: React.FC<LanderGameProps> = ({ planet, skin, onGameOver, isActive }) => {
+const LanderGame: React.FC<LanderGameProps> = ({ planet, skin, onGameOver, isActive, isRealismMode = false }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const requestRef = useRef<number>();
   
@@ -22,6 +24,7 @@ const LanderGame: React.FC<LanderGameProps> = ({ planet, skin, onGameOver, isAct
     rotation: 0,
     fuel: GAME_CONSTANTS.INITIAL_FUEL,
     thrusting: false,
+    thrustLevel: 0, // 0.0 to 1.0
     width: GAME_CONSTANTS.SHIP_WIDTH,
     height: GAME_CONSTANTS.SHIP_HEIGHT
   });
@@ -46,7 +49,7 @@ const LanderGame: React.FC<LanderGameProps> = ({ planet, skin, onGameOver, isAct
   }, []);
 
   const handleStartThrust = useCallback(() => {
-    if (ship.current.fuel > 0) ship.current.thrusting = true;
+    ship.current.thrusting = true;
   }, []);
 
   const handleEndThrust = useCallback(() => {
@@ -85,6 +88,7 @@ const LanderGame: React.FC<LanderGameProps> = ({ planet, skin, onGameOver, isAct
       rotation: 0,
       fuel: GAME_CONSTANTS.INITIAL_FUEL,
       thrusting: false,
+      thrustLevel: 0,
       width: GAME_CONSTANTS.SHIP_WIDTH,
       height: GAME_CONSTANTS.SHIP_HEIGHT
     };
@@ -109,7 +113,7 @@ const LanderGame: React.FC<LanderGameProps> = ({ planet, skin, onGameOver, isAct
             ctx.ellipse(0, 0, w, h/2, 0, 0, Math.PI * 2);
             ctx.fill();
             // Lights
-            ctx.fillStyle = s.thrusting ? '#facc15' : '#166534';
+            ctx.fillStyle = s.thrustLevel > 0.5 ? '#facc15' : '#166534';
             [-15, 0, 15].forEach(ox => {
                 ctx.beginPath(); ctx.arc(ox, 2, 2, 0, Math.PI*2); ctx.fill();
             });
@@ -240,7 +244,7 @@ const LanderGame: React.FC<LanderGameProps> = ({ planet, skin, onGameOver, isAct
                     vy: 2.0,
                     life: 1.0,
                     color: '#a3e635',
-                    size: 5
+                    size: 5 * s.thrustLevel
                 });
             }
             break;
@@ -257,7 +261,7 @@ const LanderGame: React.FC<LanderGameProps> = ({ planet, skin, onGameOver, isAct
                     vy: Math.random() * 4 + 2,
                     life: 1.0,
                     color: isChip ? '#fbbf24' : '#78350f', // Yellow or Brown
-                    size: isChip ? 6 : 4,
+                    size: (isChip ? 6 : 4) * s.thrustLevel,
                     rotation: Math.random() * Math.PI,
                     vRot: (Math.random() - 0.5) * 0.3
                 });
@@ -275,7 +279,7 @@ const LanderGame: React.FC<LanderGameProps> = ({ planet, skin, onGameOver, isAct
                     vy: Math.random() * 3 + 2,
                     life: 1.0,
                     color: '#60a5fa',
-                    size: Math.random() * 3 + 2
+                    size: (Math.random() * 3 + 2) * s.thrustLevel
                 });
             }
             break;
@@ -291,7 +295,7 @@ const LanderGame: React.FC<LanderGameProps> = ({ planet, skin, onGameOver, isAct
                     vy: Math.random() * 2 + 1,
                     life: 1.0,
                     color: '#4b5563', // Grey
-                    size: Math.random() * 5 + 5
+                    size: (Math.random() * 5 + 5) * s.thrustLevel
                 });
             }
             break;
@@ -307,7 +311,7 @@ const LanderGame: React.FC<LanderGameProps> = ({ planet, skin, onGameOver, isAct
                     vy: Math.random() * 5 + 3,
                     life: 1.0,
                     color: '#fef08a',
-                    size: Math.random() * 2 + 2
+                    size: (Math.random() * 2 + 2) * s.thrustLevel
                 });
             }
             break;
@@ -324,7 +328,7 @@ const LanderGame: React.FC<LanderGameProps> = ({ planet, skin, onGameOver, isAct
                   vy: Math.random() * 4 + 2,
                   life: 1.0,
                   color: i % 2 === 0 ? '#fbbf24' : '#ef4444',
-                  size: 3
+                  size: 3 * s.thrustLevel
                 });
               }
             break;
@@ -344,12 +348,33 @@ const LanderGame: React.FC<LanderGameProps> = ({ planet, skin, onGameOver, isAct
     const s = ship.current;
     s.vy += (planet.gravity * 0.02);
 
-    if (s.thrusting && s.fuel > 0) {
-      s.vy -= GAME_CONSTANTS.THRUST_POWER;
-      s.fuel -= GAME_CONSTANTS.FUEL_CONSUMPTION;
-      createExhaustParticles(s);
+    // Thrust Logic (Realism vs Instant)
+    if (s.fuel > 0) {
+        if (isRealismMode) {
+             // Gradient Thrust: Ramps up/down slower (0.05 instead of 0.1)
+             // Roughly 20 frames (0.33s) to full power
+            if (s.thrusting) {
+                s.thrustLevel = Math.min(s.thrustLevel + 0.05, 1.0);
+            } else {
+                s.thrustLevel = Math.max(s.thrustLevel - 0.05, 0.0);
+            }
+        } else {
+            // Instant Thrust
+            s.thrustLevel = s.thrusting ? 1.0 : 0.0;
+        }
     } else {
-        s.thrusting = false;
+        s.thrustLevel = 0.0;
+    }
+
+    // Apply Thrust
+    if (s.thrustLevel > 0) {
+        s.vy -= GAME_CONSTANTS.THRUST_POWER * s.thrustLevel;
+        s.fuel -= GAME_CONSTANTS.FUEL_CONSUMPTION * s.thrustLevel;
+        
+        // Probabilistic particles based on thrust level
+        if (Math.random() < s.thrustLevel) {
+            createExhaustParticles(s);
+        }
     }
 
     s.x += s.vx;
@@ -486,7 +511,7 @@ const LanderGame: React.FC<LanderGameProps> = ({ planet, skin, onGameOver, isAct
             // New Scoring Formula: Priority on Low Velocity
             const velocityMultiplier = 1 + (GAME_CONSTANTS.SAFE_LANDING_VELOCITY - s.vy) * 4;
             const fuelBase = Math.floor(s.fuel * 10);
-            const difficulty = planet.difficultyMultiplier;
+            const difficulty = planet.difficultyMultiplier * (isRealismMode ? 1.5 : 1.0); // Bonus for realism
             
             // Ensure multiplier is at least 1
             const safeMultiplier = Math.max(1, velocityMultiplier);
@@ -509,16 +534,25 @@ const LanderGame: React.FC<LanderGameProps> = ({ planet, skin, onGameOver, isAct
     ctx.fillStyle = s.vy > GAME_CONSTANTS.SAFE_LANDING_VELOCITY ? '#ef4444' : '#4ade80';
     ctx.fillText(`VEL: ${vel} m/s`, 15, 45);
 
+    // Fuel Bar
     ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
     ctx.fillText(`FUEL`, 15, 65);
     ctx.fillStyle = '#334155';
     ctx.fillRect(55, 55, 100, 10);
     ctx.fillStyle = s.fuel > 20 ? '#fbbf24' : '#ef4444';
     ctx.fillRect(55, 55, s.fuel, 10);
+    
+    // Thrust Indicator (Realism Mode)
+    if (isRealismMode) {
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillRect(55, 70, 100, 4); // bg
+        ctx.fillStyle = '#f97316'; // orange
+        ctx.fillRect(55, 70, s.thrustLevel * 100, 4);
+    }
 
     requestRef.current = requestAnimationFrame(animate);
 
-  }, [isActive, planet, onGameOver, skin]);
+  }, [isActive, planet, onGameOver, skin, isRealismMode]);
 
   useEffect(() => {
     const handleResize = () => {
