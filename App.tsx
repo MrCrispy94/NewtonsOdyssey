@@ -230,7 +230,7 @@ const App: React.FC = () => {
                             </div>
                         </li>
                         <li className="bg-slate-900 p-2 rounded text-xs border border-slate-700 mt-1">
-                            <strong>Resultant Force:</strong> If Thrust > Weight, you slow down. If Weight > Thrust, you speed up downwards.
+                            <strong>Resultant Force:</strong> If Thrust &gt; Weight, you slow down. If Weight &gt; Thrust, you speed up downwards.
                         </li>
                     </ul>
                 </div>
